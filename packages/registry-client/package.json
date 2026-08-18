@@ -1,0 +1,27 @@
+{
+  "name": "@ai-skillops/registry-client",
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-skillops/shared": "file:../shared",
+    "@supabase/supabase-js": "^2.45.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.0.0"
+  }
+}
