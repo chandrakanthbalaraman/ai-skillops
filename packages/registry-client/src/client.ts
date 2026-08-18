@@ -43,7 +43,10 @@ export class RegistryClient {
   ): Promise<Artifact> {
     const { data, error } = await this.supabase
       .from('artifacts')
-      .upsert({ ...artifact, last_updated_at: new Date().toISOString() })
+      .upsert(
+        { ...artifact, last_updated_at: new Date().toISOString() },
+        { onConflict: 'repo_id,path' }
+      )
       .select()
       .single();
     if (error) throw new Error(`upsertArtifact failed: ${error.message}`);
@@ -92,23 +95,24 @@ export class RegistryClient {
   }
 
   async getApprovedArtifacts(stack: StackProfile): Promise<Artifact[]> {
-    let query = this.supabase
+    const { data, error } = await this.supabase
       .from('artifacts')
       .select('*, classifications(*)')
       .eq('status', 'approved')
       .order('combined_score', { ascending: false })
       .limit(50);
 
-    if (stack.language) {
-      query = query.contains('classifications.languages', [stack.language]);
-    }
-    if (stack.framework) {
-      query = query.contains('classifications.frameworks', [stack.framework]);
-    }
-
-    const { data, error } = await query;
     if (error) throw new Error(`getApprovedArtifacts failed: ${error.message}`);
-    return (data ?? []) as Artifact[];
+
+    const all = (data ?? []) as (Artifact & { classifications: Classification[] })[];
+
+    return all.filter(a => {
+      if (!a.classifications?.length) return true; // no classification data: include
+      const c = a.classifications[0];
+      if (stack.language && c.languages.length > 0 && !c.languages.includes(stack.language)) return false;
+      if (stack.framework && c.frameworks.length > 0 && !c.frameworks.includes(stack.framework)) return false;
+      return true;
+    });
   }
 
   async getArtifactById(id: string): Promise<Artifact | null> {

@@ -28,7 +28,8 @@ create table artifacts (
   quality_score   int  not null default 0 check (quality_score between 0 and 100),
   popularity_score int not null default 0 check (popularity_score between 0 and 100),
   combined_score  int  not null default 0 check (combined_score between 0 and 100),
-  last_updated_at timestamptz not null default now()
+  last_updated_at timestamptz not null default now(),
+  constraint artifacts_repo_path_unique unique (repo_id, path)
 );
 
 create table scans (
