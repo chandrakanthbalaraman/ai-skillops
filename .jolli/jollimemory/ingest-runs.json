@@ -1,0 +1,26 @@
+[
+	{
+		"startedAt": "2026-08-18T21:13:36.068Z",
+		"durationMs": 17644,
+		"triggeredBy": "post-commit",
+		"outcome": "OK",
+		"batches": 1,
+		"ingested": 1,
+		"touchedSlugs": 1,
+		"routeCalls": 1,
+		"reconcileCalls": 1,
+		"topicFailures": []
+	},
+	{
+		"startedAt": "2026-08-18T21:18:44.208Z",
+		"durationMs": 18528,
+		"triggeredBy": "post-commit",
+		"outcome": "OK",
+		"batches": 1,
+		"ingested": 1,
+		"touchedSlugs": 1,
+		"routeCalls": 1,
+		"reconcileCalls": 1,
+		"topicFailures": []
+	}
+]

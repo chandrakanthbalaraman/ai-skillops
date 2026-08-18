@@ -8,7 +8,7 @@ export interface SkillsShEntry {
   githubUrl: string;
 }
 
-function parseInstallCount(raw: string): number {
+export function parseInstallCount(raw: string): number {
   const cleaned = raw.replace(/,/g, '').toUpperCase();
   if (cleaned.endsWith('M')) return parseFloat(cleaned) * 1_000_000;
   if (cleaned.endsWith('K')) return parseFloat(cleaned) * 1_000;
