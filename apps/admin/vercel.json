@@ -1,4 +1,6 @@
 {
+  "installCommand": "cd ../.. && npm install",
   "buildCommand": "cd ../.. && npm run build --workspace=packages/shared && npm run build --workspace=packages/registry-client && npm run build --workspace=apps/admin",
-  "outputDirectory": "apps/admin/.next"
+  "outputDirectory": ".next",
+  "framework": "nextjs"
 }
