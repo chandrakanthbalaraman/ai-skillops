@@ -44,9 +44,16 @@ Blueprint progress tracking: this file.
   Auth, login, nav, dashboard (roadmap Task 10)
 - [x] 11. **Admin repositories, artifacts, review, analytics** - Ops pages
   (roadmap Task 11)
-- [ ] 12. **Ship v1** - Deploy admin to Vercel (config present), publish CLI
-  to npm, configure Actions secrets, seed scanner, end-to-end smoke test
-  (roadmap Task 12)
+- [ ] 12. **Ship v1** - Deploy admin, publish CLI, Actions secrets, seed,
+  end-to-end smoke (roadmap Task 12)
+  - [x] 12a. **Vercel admin deploy** - Deploy `apps/admin` to Vercel with
+    `NEXT_PUBLIC_*` env and confirm login on the live URL
+  - [ ] 12b. **Publish CLI to npm** - Build and publish `ai-skillops`, smoke
+    `--version` / `--help` via `npx`
+  - [ ] 12c. **Scanner secrets + seed** - Set Actions secrets, run
+    `scanner.yml`, confirm Supabase tables populate
+  - [ ] 12d. **E2E smoke + tag** - Full CLI loop in a throwaway project, then
+    `v0.1.0` tag
 
 ## Post-MVP (not in v1 roadmap)
 
