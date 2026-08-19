@@ -2,6 +2,7 @@
   "name": "ai-skillops",
   "private": true,
   "type": "module",
+  "packageManager": "npm@11.6.2",
   "engines": {
     "node": ">=20.0.0"
   },

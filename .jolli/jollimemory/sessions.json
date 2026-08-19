@@ -1,4 +1,11 @@
 {
 	"version": 1,
-	"sessions": {}
+	"sessions": {
+		"2d93dfd2-aee6-4a8a-a847-11f8ad8dc5fc": {
+			"sessionId": "2d93dfd2-aee6-4a8a-a847-11f8ad8dc5fc",
+			"transcriptPath": "/Users/chandrakanthbalaraman/.cursor/projects/Users-chandrakanthbalaraman-Documents-Dev-project-labs-ai-skillops/agent-transcripts/2d93dfd2-aee6-4a8a-a847-11f8ad8dc5fc/2d93dfd2-aee6-4a8a-a847-11f8ad8dc5fc.jsonl",
+			"updatedAt": "2026-08-19T02:00:22.488Z",
+			"source": "claude"
+		}
+	}
 }

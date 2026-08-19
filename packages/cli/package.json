@@ -10,8 +10,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
-    "dev": "node --loader ts-node/esm src/index.ts"
+    "test": "vitest run"
   },
   "dependencies": {
     "@ai-skillops/shared": "file:../shared",

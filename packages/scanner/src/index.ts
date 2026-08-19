@@ -71,13 +71,18 @@ async function run(): Promise<void> {
           const popularityScore = computePopularityScore(entry.installs);
           const combinedScore = computeCombinedScore({ safetyScore, qualityScore, popularityScore });
 
+          // Preserve human moderation status on re-scan; only set status for new artifacts
+          const existingArtifact = await client.getArtifactByRepoAndPath(repo.id, file.path);
+          const newStatus = existingArtifact?.status ??
+            (safetyScore >= 90 && safetyResults.length === 0 ? 'approved' : 'pending_review');
+
           const artifact = await client.upsertArtifact({
             repo_id: repo.id,
             kind: file.kind,
             name: file.path.split('/').pop()?.replace(/\.(md|mdc)$/i, '') ?? file.path,
             path: file.path,
             version: '0.1.0',
-            status: safetyScore >= 90 && safetyResults.length === 0 ? 'approved' : 'pending_review',
+            status: newStatus,
             safety_score: safetyScore,
             quality_score: qualityScore,
             popularity_score: popularityScore,
@@ -96,9 +101,44 @@ async function run(): Promise<void> {
             });
             totalFindings++;
           }
+
+          // Write classification data for stack-aware recommendations
+          const languages: string[] = [];
+          const frameworks: string[] = [];
+          const agents: string[] = [];
+
+          // Detect agents from directory paths
+          if (file.path.startsWith('.claude/')) agents.push('claude-code');
+          if (file.path.startsWith('.cursor/')) agents.push('cursor');
+          if (file.path.startsWith('.github/') || file.path.includes('copilot')) agents.push('copilot');
+
+          // Detect language/framework from content keywords
+          const content = file.content.toLowerCase();
+          if (content.includes('typescript') || content.includes('tsx')) languages.push('typescript');
+          else if (content.includes('javascript') || content.includes('jsx')) languages.push('javascript');
+          if (content.includes('next.js') || content.includes('nextjs')) frameworks.push('next.js');
+          else if (content.includes('react')) frameworks.push('react');
+          if (content.includes('spring boot') || content.includes('spring')) frameworks.push('spring-boot');
+          if (content.includes('django')) frameworks.push('django');
+
+          await client.upsertClassification({
+            artifact_id: artifact.id,
+            languages,
+            frameworks,
+            framework_versions: {},
+            runtimes: [],
+            build_tools: [],
+            databases: [],
+            architectures: [],
+            agents,
+          });
         }
 
         await client.completeScan(scan.id, files.length, totalFindings);
+        await client.updateRepository(repo.id, {
+          status: 'active',
+          last_scanned_at: new Date().toISOString(),
+        });
         console.log(`done ${entry.owner}/${entry.repo}: ${files.length} artifacts, ${totalFindings} findings`);
       } catch (innerErr) {
         await client.completeScan(scan.id, 0, 0);
@@ -112,4 +152,10 @@ async function run(): Promise<void> {
   console.log('Scanner complete.');
 }
 
-run().catch(console.error);
+// Only auto-run when executed directly (not when imported)
+const isMain = import.meta.url === new URL(process.argv[1], 'file://').href;
+if (isMain) {
+  run().catch(console.error);
+}
+
+export { run };

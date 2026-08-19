@@ -7,7 +7,11 @@ there is a single source of truth.
 
 ## What this is
 
-A description of your project and the problem it solves.
+Governed CLI + registry + admin UI for AI agent artifacts (skills, rules,
+contexts, commands, workflows): discover from skills.sh/GitHub, safety-scan,
+score, and install with lockfile pinning for Claude Code, Cursor, Codex, and
+Copilot. v1 scope is the roadmap in
+`docs/superpowers/plans/2026-08-18-ai-skillops-roadmap.md`.
 
 This project is built with the **AI Blueprint**, a workflow layer, not an
 app skeleton. To start a new project, scaffold the app first in an empty folder
@@ -106,13 +110,18 @@ checks do not make the Blueprint unusable.
 
 ## Commands
 
-For a standard Next.js project. Change or remove if you're using something else.
+Turborepo monorepo (npm workspaces). Package manager: npm (`package-lock.json`).
+Node.js >= 20. Root declares `packageManager` for Turbo.
 
-- Dev server: `npm run dev` (http://localhost:3000)
+- Dev: `npm run dev` (turbo → admin Next.js at http://localhost:3000)
 - Build: `npm run build`
-- Production server: `npm run start`
+- Test: `npm test` (Vitest via turbo across packages)
 - Lint: `npm run lint`
 
-Testing is opt-in. If this project does not already have a unit test runner, run
-`/tests` or `$tests` to add one and update this section with the real test
-commands.
+Optional scanner entry (after build): `npm run scan -w @ai-skillops/scanner`
+
+Admin env lives in `apps/admin/.env.local` (`NEXT_PUBLIC_SUPABASE_*`). Root
+`.env.local` holds scanner/CLI secrets (`SUPABASE_*`, `GITHUB_TOKEN`).
+
+No combined `Verify` command yet. Run `/ci` or `$ci` when you want automatic
+GitHub checks.

@@ -136,4 +136,35 @@ export class RegistryClient {
     if (error) throw new Error(`searchArtifacts failed: ${error.message}`);
     return (data ?? []) as Artifact[];
   }
+
+  async getArtifactByRepoAndPath(repoId: string, path: string): Promise<Artifact | null> {
+    const { data, error } = await this.supabase
+      .from('artifacts')
+      .select()
+      .eq('repo_id', repoId)
+      .eq('path', path)
+      .single();
+    if (error?.code === 'PGRST116') return null; // not found
+    if (error) throw new Error(`getArtifactByRepoAndPath failed: ${error.message}`);
+    return data as Artifact;
+  }
+
+  async updateRepository(
+    id: string,
+    updates: Partial<Omit<Repository, 'id' | 'added_at'>>
+  ): Promise<void> {
+    const { error } = await this.supabase
+      .from('repositories')
+      .update(updates)
+      .eq('id', id);
+    if (error) throw new Error(`updateRepository failed: ${error.message}`);
+  }
+
+  async upsertClassification(classification: Omit<Classification, 'id'>): Promise<void> {
+    const { error } = await this.supabase
+      .from('classifications')
+      .upsert(classification, { onConflict: 'artifact_id' })
+      .select();
+    if (error) throw new Error(`upsertClassification failed: ${error.message}`);
+  }
 }
