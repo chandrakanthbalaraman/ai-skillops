@@ -13,17 +13,12 @@ function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
   }
 }
 
-export async function POST(req: Request) {
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
+export async function POST(request: Request) {
+  const formData = await request.formData();
+  const githubUrl = formData.get('githubUrl');
 
-  const githubUrl = (body as Record<string, unknown>)?.github_url;
   if (typeof githubUrl !== 'string' || !githubUrl) {
-    return NextResponse.json({ error: 'github_url is required' }, { status: 400 });
+    return NextResponse.json({ error: 'githubUrl is required' }, { status: 400 });
   }
 
   const parsed = parseGitHubUrl(githubUrl);
@@ -32,7 +27,7 @@ export async function POST(req: Request) {
   }
 
   const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('repositories')
     .insert({
       github_owner: parsed.owner,
@@ -41,10 +36,8 @@ export async function POST(req: Request) {
       source: 'manual',
       status: 'pending',
       skills_sh_installs: 0,
-    })
-    .select()
-    .single();
+    });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data }, { status: 201 });
+  return NextResponse.redirect(new URL('/repositories', request.url), { status: 303 });
 }

@@ -12,6 +12,18 @@ export default async function RepositoriesPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">Repositories</h1>
+      <form action="/api/repositories" method="POST" className="flex gap-2 mb-6">
+        <input
+          name="githubUrl"
+          type="url"
+          placeholder="https://github.com/owner/repo"
+          required
+          className="flex-1 border border-gray-700 rounded bg-gray-900 px-3 py-2 text-sm text-gray-100 placeholder-gray-500"
+        />
+        <button type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-sm font-medium">
+          Add Repository
+        </button>
+      </form>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-gray-400 border-b border-gray-800">
