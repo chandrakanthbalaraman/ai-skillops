@@ -74,8 +74,12 @@ export async function installArtifact(
 }
 
 export async function runInstall(id: string, cwd: string): Promise<void> {
-  const url = process.env['AI_SKILLOPS_REGISTRY_URL'] ?? '';
-  const key = process.env['AI_SKILLOPS_ANON_KEY'] ?? '';
+  const url = process.env['AI_SKILLOPS_REGISTRY_URL'];
+  const key = process.env['AI_SKILLOPS_ANON_KEY'];
+  if (!url || !key) {
+    console.error('AI_SKILLOPS_REGISTRY_URL and AI_SKILLOPS_ANON_KEY must be set.');
+    process.exit(1);
+  }
   const client = new RegistryClient(url, key);
   const artifact = await client.getArtifactById(id);
   if (!artifact) {

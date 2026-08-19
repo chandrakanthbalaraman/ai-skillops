@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { program } from 'commander';
+import chalk from 'chalk';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
@@ -38,4 +39,7 @@ program
     await runInstall(id, process.cwd());
   });
 
-program.parse(process.argv);
+program.parseAsync(process.argv).catch((err: unknown) => {
+  console.error(chalk.red('Error:'), (err as Error).message ?? err);
+  process.exit(1);
+});
