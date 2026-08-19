@@ -38,11 +38,16 @@ async function run(): Promise<void> {
         owner: entry.owner,
         repo: entry.repo,
         branch: 'main',
-      }).catch(() => octokit.repos.getBranch({
-        owner: entry.owner,
-        repo: entry.repo,
-        branch: 'master',
-      }));
+      }).catch((err: { status?: number }) => {
+        if (err.status === 404) {
+          return octokit.repos.getBranch({
+            owner: entry.owner,
+            repo: entry.repo,
+            branch: 'master',
+          });
+        }
+        throw err;
+      });
 
       const commitSha = branch.data.commit.sha;
 
@@ -55,45 +60,50 @@ async function run(): Promise<void> {
         findings_count: 0,
       });
 
-      const files = await detectArtifactFiles(entry.owner, entry.repo, commitSha, GITHUB_TOKEN);
-      let totalFindings = 0;
+      try {
+        const files = await detectArtifactFiles(entry.owner, entry.repo, commitSha, GITHUB_TOKEN);
+        let totalFindings = 0;
 
-      for (const file of files) {
-        const safetyResults = scanContent(file.content, file.path);
-        const safetyScore = computeSafetyScore(safetyResults);
-        const qualityScore = computeQualityScore(file.content);
-        const popularityScore = computePopularityScore(entry.installs);
-        const combinedScore = computeCombinedScore({ safetyScore, qualityScore, popularityScore });
+        for (const file of files) {
+          const safetyResults = scanContent(file.content, file.path);
+          const safetyScore = computeSafetyScore(safetyResults);
+          const qualityScore = computeQualityScore(file.content);
+          const popularityScore = computePopularityScore(entry.installs);
+          const combinedScore = computeCombinedScore({ safetyScore, qualityScore, popularityScore });
 
-        const artifact = await client.upsertArtifact({
-          repo_id: repo.id,
-          kind: file.kind,
-          name: file.path.split('/').pop()?.replace(/\.(md|mdc)$/i, '') ?? file.path,
-          path: file.path,
-          version: '0.1.0',
-          status: safetyScore >= 90 && safetyResults.length === 0 ? 'approved' : 'pending_review',
-          safety_score: safetyScore,
-          quality_score: qualityScore,
-          popularity_score: popularityScore,
-          combined_score: combinedScore,
-        });
-
-        for (const finding of safetyResults) {
-          await client.insertFinding({
-            scan_id: scan.id,
-            artifact_id: artifact.id,
-            severity: finding.severity,
-            kind: finding.kind,
-            file: file.path,
-            line: finding.line,
-            evidence: finding.evidence,
+          const artifact = await client.upsertArtifact({
+            repo_id: repo.id,
+            kind: file.kind,
+            name: file.path.split('/').pop()?.replace(/\.(md|mdc)$/i, '') ?? file.path,
+            path: file.path,
+            version: '0.1.0',
+            status: safetyScore >= 90 && safetyResults.length === 0 ? 'approved' : 'pending_review',
+            safety_score: safetyScore,
+            quality_score: qualityScore,
+            popularity_score: popularityScore,
+            combined_score: combinedScore,
           });
-          totalFindings++;
-        }
-      }
 
-      await client.completeScan(scan.id, files.length, totalFindings);
-      console.log(`done ${entry.owner}/${entry.repo}: ${files.length} artifacts, ${totalFindings} findings`);
+          for (const finding of safetyResults) {
+            await client.insertFinding({
+              scan_id: scan.id,
+              artifact_id: artifact.id,
+              severity: finding.severity,
+              kind: finding.kind,
+              file: file.path,
+              line: finding.line,
+              evidence: finding.evidence,
+            });
+            totalFindings++;
+          }
+        }
+
+        await client.completeScan(scan.id, files.length, totalFindings);
+        console.log(`done ${entry.owner}/${entry.repo}: ${files.length} artifacts, ${totalFindings} findings`);
+      } catch (innerErr) {
+        await client.completeScan(scan.id, 0, 0);
+        throw innerErr;
+      }
     } catch (err) {
       console.error(`fail ${entry.owner}/${entry.repo}: ${(err as Error).message}`);
     }

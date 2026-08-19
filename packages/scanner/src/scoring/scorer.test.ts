@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeSafetyScore, computeQualityScore, computeCombinedScore } from './scorer.js';
+import { computeSafetyScore, computeQualityScore, computeCombinedScore, computePopularityScore } from './scorer.js';
 
 describe('computeSafetyScore', () => {
   it('returns 100 for no findings', () => {
@@ -46,5 +46,31 @@ describe('computeCombinedScore', () => {
       popularityScore: 100,
     });
     expect(score).toBeLessThan(80);
+  });
+});
+
+describe('computePopularityScore', () => {
+  it('returns 100 for >= 1M installs', () => {
+    expect(computePopularityScore(1_000_000)).toBe(100);
+  });
+
+  it('returns 85 for >= 500K installs', () => {
+    expect(computePopularityScore(500_000)).toBe(85);
+  });
+
+  it('returns 70 for >= 100K installs', () => {
+    expect(computePopularityScore(100_000)).toBe(70);
+  });
+
+  it('returns 50 for >= 10K installs', () => {
+    expect(computePopularityScore(10_000)).toBe(50);
+  });
+
+  it('returns 30 for >= 1K installs', () => {
+    expect(computePopularityScore(1_000)).toBe(30);
+  });
+
+  it('returns 10 for low install counts', () => {
+    expect(computePopularityScore(500)).toBe(10);
   });
 });
