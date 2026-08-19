@@ -1,5 +1,5 @@
 {
-  "installCommand": "cd ../.. && npm install",
+  "installCommand": "cd ../.. && npm install --workspace=@ai-skillops/shared --workspace=@ai-skillops/registry-client --workspace=@ai-skillops/admin --include-workspace-root",
   "buildCommand": "cd ../.. && npm run build --workspace=packages/shared && npm run build --workspace=packages/registry-client && npm run build --workspace=apps/admin",
   "outputDirectory": ".next",
   "framework": "nextjs"
