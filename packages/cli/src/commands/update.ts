@@ -22,7 +22,12 @@ export async function runUpdate(cwd: string): Promise<void> {
     if (latest && latest.version !== entry.version) {
       console.log(chalk.cyan(`  Updating ${entry.id} ${entry.version} → ${latest.version}`));
       const newEntry = await installArtifact(latest, cwd);
-      if (newEntry) newEntries.push(newEntry);
+      if (!newEntry) {
+        console.warn(`  warn: could not update ${entry.id}, keeping existing entry`);
+        newEntries.push(entry);
+      } else {
+        newEntries.push(newEntry);
+      }
     } else {
       newEntries.push(entry);
     }
