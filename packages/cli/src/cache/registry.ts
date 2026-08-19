@@ -32,8 +32,14 @@ export class RegistryCache {
   }
 
   private get client(): RegistryClient {
-    const url = process.env['AI_SKILLOPS_REGISTRY_URL'] ?? 'https://your-project.supabase.co';
-    const key = process.env['AI_SKILLOPS_ANON_KEY'] ?? '';
+    const url = process.env['AI_SKILLOPS_REGISTRY_URL'];
+    const key = process.env['AI_SKILLOPS_ANON_KEY'];
+    if (!url || !key) {
+      throw new Error(
+        'AI_SKILLOPS_REGISTRY_URL and AI_SKILLOPS_ANON_KEY must be set.\n' +
+        'Run: export AI_SKILLOPS_REGISTRY_URL=https://your-project.supabase.co'
+      );
+    }
     return new RegistryClient(url, key);
   }
 

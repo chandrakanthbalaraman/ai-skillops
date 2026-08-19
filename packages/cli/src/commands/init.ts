@@ -19,7 +19,8 @@ export async function runInit(cwd: string): Promise<void> {
   const cache = new RegistryCache();
   await cache.ensureFresh();
 
-  const all = cache.getAll();
+  const byStack = cache.getForStack(stack);
+  const all = byStack.length > 0 ? byStack : cache.getAll();
   const choices = all.slice(0, 10).map(a => ({
     name: `${a.name}  ${chalk.dim(`Safety ${a.safety_score}`)}`,
     value: a,

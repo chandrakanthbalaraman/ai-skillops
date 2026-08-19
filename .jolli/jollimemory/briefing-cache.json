@@ -1,7 +1,0 @@
-{
-	"branch": "feat/v1-implementation",
-	"lastCommitHash": "724c2da0052666f7b9cdd2dcb5d46ee0e70c3e1c",
-	"briefingText": "[Jolli Memory — feat/v1-implementation]\n2 commits (2026-08-18 ~ 2026-08-19) | 10 files, +527 -0\nLast: Add Vercel deployment configuration for admin app (2026-08-19)\nDecisions: The build command was set to run from the monorepo root and explicitly target the admin workspace, rather than building admin in isolation, so that shared packages it depends on are built first and s…",
-	"clientKind": "shared",
-	"generatedAt": "2026-08-19T01:56:44.780Z"
-}

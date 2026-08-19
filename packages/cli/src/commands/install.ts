@@ -1,9 +1,13 @@
 import { createHash } from 'node:crypto';
 import { writeFile, mkdir } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import chalk from 'chalk';
 import type { Artifact, LockfileEntry, StackProfile } from '@ai-skillops/shared';
 import { RegistryClient } from '@ai-skillops/registry-client';
+
+function sanitizeName(name: string): string {
+  return name.replace(/[/\\]/g, '-').replace(/\.\./g, '-');
+}
 
 function artifactInstallPath(artifact: Artifact, cwd: string): string {
   const base: Record<string, string> = {
@@ -14,7 +18,12 @@ function artifactInstallPath(artifact: Artifact, cwd: string): string {
     workflow: '.claude/skills/workflows',
     pack: '.claude/skills',
   };
-  return join(cwd, base[artifact.kind] ?? '.claude/skills', `${artifact.name}.md`);
+  const safeName = sanitizeName(artifact.name);
+  const resolvedPath = join(cwd, base[artifact.kind] ?? '.claude/skills', `${safeName}.md`);
+  if (!resolvedPath.startsWith(resolve(cwd))) {
+    throw new Error(`Path traversal detected for artifact ${artifact.id}`);
+  }
+  return resolvedPath;
 }
 
 export async function installArtifact(
@@ -84,6 +93,10 @@ export async function runInstall(id: string, cwd: string): Promise<void> {
   const artifact = await client.getArtifactById(id);
   if (!artifact) {
     console.error(`Artifact not found: ${id}`);
+    process.exit(1);
+  }
+  if (artifact.status !== 'approved') {
+    console.error(`Artifact '${id}' is not approved (status: ${artifact.status}). Cannot install.`);
     process.exit(1);
   }
   await installArtifact(artifact, cwd);

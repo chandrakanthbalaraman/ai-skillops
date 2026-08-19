@@ -25,6 +25,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  if (user) {
+    const allowedEmails = (process.env['ADMIN_ALLOWED_EMAILS'] ?? '')
+      .split(',').map(e => e.trim()).filter(Boolean);
+    if (allowedEmails.length > 0 && !allowedEmails.includes(user.email ?? '')) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.searchParams.set('error', 'unauthorized');
+      return NextResponse.redirect(url);
+    }
+  }
+
   return response;
 }
 
