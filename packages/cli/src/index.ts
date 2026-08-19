@@ -1,69 +1,41 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
-import chalk from 'chalk';
-import { detectStack } from './detector/stack.js';
-import { readLockfile, writeLockfile } from './lockfile/index.js';
+import { program } from 'commander';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join, dirname } from 'node:path';
+import { runInit } from './commands/init.js';
+import { runSearch } from './commands/search.js';
+import { runInstall } from './commands/install.js';
 
-const program = new Command();
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(
+  readFileSync(join(__dirname, '../package.json'), 'utf-8'),
+) as { version: string };
 
 program
   .name('ai-skillops')
-  .description('Discover and install AI agent skills for your project')
-  .version('0.1.0');
+  .version(pkg.version)
+  .description('Discover, govern, and install AI engineering skills and workflows');
 
 program
   .command('init')
-  .description('Detect the project stack and initialize ai-skillops.lock.yaml')
+  .description('Detect stack and install recommended artifacts interactively')
   .action(async () => {
-    const cwd = process.cwd();
-    console.log(chalk.blue('Detecting project stack...'));
-
-    const stack = await detectStack(cwd);
-
-    console.log(chalk.green('Stack detected:'));
-    console.log(`  Language:   ${stack.language ?? 'unknown'}`);
-    console.log(`  Framework:  ${stack.framework ?? 'unknown'}`);
-    console.log(`  Build tool: ${stack.buildTool ?? 'unknown'}`);
-    if (stack.agents.length > 0) {
-      console.log(`  Agents:     ${stack.agents.join(', ')}`);
-    }
-
-    const existing = await readLockfile(cwd);
-    if (existing) {
-      console.log(chalk.yellow('ai-skillops.lock.yaml already exists — skipping write.'));
-      return;
-    }
-
-    const lockfile = {
-      lockVersion: 1 as const,
-      generated: new Date().toISOString(),
-      project: stack,
-      artifacts: [],
-    };
-
-    await writeLockfile(cwd, lockfile);
-    console.log(chalk.green('Created ai-skillops.lock.yaml'));
+    await runInit(process.cwd());
   });
 
 program
-  .command('status')
-  .description('Show the current lockfile status')
-  .action(async () => {
-    const cwd = process.cwd();
-    const lockfile = await readLockfile(cwd);
-    if (!lockfile) {
-      console.log(chalk.yellow('No ai-skillops.lock.yaml found. Run `ai-skillops init` first.'));
-      return;
-    }
-
-    console.log(chalk.green('ai-skillops.lock.yaml'));
-    console.log(`  Generated:  ${lockfile.generated}`);
-    console.log(`  Language:   ${lockfile.project.language ?? 'unknown'}`);
-    console.log(`  Framework:  ${lockfile.project.framework ?? 'unknown'}`);
-    console.log(`  Artifacts:  ${lockfile.artifacts.length}`);
+  .command('search <query>')
+  .description('Search the registry by keyword')
+  .action(async (query: string) => {
+    await runSearch(query);
   });
 
-program.parseAsync(process.argv).catch((err: unknown) => {
-  console.error(chalk.red('Error:'), err);
-  process.exit(1);
-});
+program
+  .command('install <id>')
+  .description('Install a specific artifact by id')
+  .action(async (id: string) => {
+    await runInstall(id, process.cwd());
+  });
+
+program.parse(process.argv);

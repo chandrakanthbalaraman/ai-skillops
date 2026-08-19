@@ -2,23 +2,19 @@ import Database from 'better-sqlite3';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import type { Artifact, StackProfile } from '@ai-skillops/shared';
 import { RegistryClient } from '@ai-skillops/registry-client';
+import type { Artifact, StackProfile } from '@ai-skillops/shared';
 
-const DB_PATH = join(homedir(), '.ai-skillops', 'cache', 'registry.db');
-
-function ensureDbDir(): void {
-  mkdirSync(join(homedir(), '.ai-skillops', 'cache'), { recursive: true });
-}
+const CACHE_DIR = join(homedir(), '.ai-skillops', 'cache');
+const CACHE_PATH = join(CACHE_DIR, 'registry.db');
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export class RegistryCache {
   private db: Database.Database;
-  private client: RegistryClient;
 
-  constructor(supabaseUrl: string, supabaseKey: string) {
-    ensureDbDir();
-    this.db = new Database(DB_PATH);
-    this.client = new RegistryClient(supabaseUrl, supabaseKey);
+  constructor(dbPath: string = CACHE_PATH) {
+    mkdirSync(CACHE_DIR, { recursive: true });
+    this.db = new Database(dbPath);
     this.initSchema();
   }
 
@@ -26,30 +22,30 @@ export class RegistryCache {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS artifacts (
         id TEXT PRIMARY KEY,
-        repo_id TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        name TEXT NOT NULL,
-        path TEXT NOT NULL,
-        version TEXT NOT NULL,
-        status TEXT NOT NULL,
-        safety_score REAL NOT NULL DEFAULT 0,
-        quality_score REAL NOT NULL DEFAULT 0,
-        popularity_score REAL NOT NULL DEFAULT 0,
-        combined_score REAL NOT NULL DEFAULT 0,
-        last_updated_at TEXT NOT NULL,
-        languages TEXT NOT NULL DEFAULT '[]',
-        frameworks TEXT NOT NULL DEFAULT '[]'
+        data TEXT NOT NULL
       );
-
-      CREATE TABLE IF NOT EXISTS cache_meta (
+      CREATE TABLE IF NOT EXISTS meta (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
     `);
   }
 
+  private get client(): RegistryClient {
+    const url = process.env['AI_SKILLOPS_REGISTRY_URL'] ?? 'https://your-project.supabase.co';
+    const key = process.env['AI_SKILLOPS_ANON_KEY'] ?? '';
+    return new RegistryClient(url, key);
+  }
+
+  private isStale(): boolean {
+    const row = this.db.prepare('SELECT value FROM meta WHERE key = ?').get('synced_at') as { value: string } | undefined;
+    if (!row) return true;
+    return Date.now() - new Date(row.value).getTime() > CACHE_TTL_MS;
+  }
+
   async sync(): Promise<void> {
-    const artifacts = await this.client.getApprovedArtifacts({
+    const client = this.client;
+    const artifacts = await client.getApprovedArtifacts({
       language: null,
       framework: null,
       runtime: null,
@@ -58,71 +54,61 @@ export class RegistryCache {
       agents: [],
       architecture: null,
     });
-
-    const insert = this.db.prepare(`
-      INSERT OR REPLACE INTO artifacts
-        (id, repo_id, kind, name, path, version, status,
-         safety_score, quality_score, popularity_score, combined_score,
-         last_updated_at, languages, frameworks)
-      VALUES
-        (@id, @repo_id, @kind, @name, @path, @version, @status,
-         @safety_score, @quality_score, @popularity_score, @combined_score,
-         @last_updated_at, @languages, @frameworks)
-    `);
-
-    const syncAll = this.db.transaction((rows: Artifact[]) => {
-      for (const a of rows) {
-        const cls = (a as unknown as { classifications?: { languages: string[]; frameworks: string[] }[] }).classifications?.[0];
-        const languages = JSON.stringify(cls?.languages ?? []);
-        const frameworks = JSON.stringify(cls?.frameworks ?? []);
-        insert.run({
-          ...a,
-          languages,
-          frameworks,
-        });
-      }
+    const insert = this.db.prepare('INSERT OR REPLACE INTO artifacts (id, data) VALUES (?, ?)');
+    const insertAll = this.db.transaction((items: Artifact[]) => {
+      for (const item of items) insert.run(item.id, JSON.stringify(item));
     });
-
-    syncAll(artifacts);
-
-    const upsertMeta = this.db.prepare(
-      `INSERT OR REPLACE INTO cache_meta (key, value) VALUES ('last_synced', ?)`,
+    insertAll(artifacts);
+    this.db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(
+      'synced_at',
+      new Date().toISOString(),
     );
-    upsertMeta.run(new Date().toISOString());
+  }
+
+  async ensureFresh(): Promise<void> {
+    if (this.isStale()) await this.sync();
   }
 
   search(query: string): Artifact[] {
-    const lower = `%${query.toLowerCase()}%`;
     const rows = this.db
-      .prepare(
-        `SELECT * FROM artifacts WHERE LOWER(name) LIKE ? ORDER BY combined_score DESC LIMIT 20`,
-      )
-      .all(lower);
-    return rows as Artifact[];
+      .prepare("SELECT data FROM artifacts WHERE json_extract(data, '$.name') LIKE ?")
+      .all(`%${query}%`) as { data: string }[];
+    return rows.map(r => JSON.parse(r.data) as Artifact);
   }
 
   getById(id: string): Artifact | null {
-    const row = this.db.prepare(`SELECT * FROM artifacts WHERE id = ?`).get(id);
-    return (row as Artifact) ?? null;
+    const row = this.db.prepare('SELECT data FROM artifacts WHERE id = ?').get(id) as
+      | { data: string }
+      | undefined;
+    return row ? (JSON.parse(row.data) as Artifact) : null;
+  }
+
+  getAll(): Artifact[] {
+    const rows = this.db
+      .prepare(
+        "SELECT data FROM artifacts ORDER BY json_extract(data, '$.combined_score') DESC",
+      )
+      .all() as { data: string }[];
+    return rows.map(r => JSON.parse(r.data) as Artifact);
   }
 
   getForStack(stack: StackProfile): Artifact[] {
-    if (!stack.language && !stack.framework) {
-      return this.db
-        .prepare(`SELECT * FROM artifacts ORDER BY combined_score DESC LIMIT 50`)
-        .all() as Artifact[];
-    }
-
-    const rows = this.db
-      .prepare(`SELECT * FROM artifacts ORDER BY combined_score DESC`)
-      .all() as (Artifact & { languages: string; frameworks: string })[];
-
-    return rows.filter((a) => {
-      const langs: string[] = JSON.parse(a.languages);
-      const fwks: string[] = JSON.parse(a.frameworks);
-
-      if (stack.language && langs.length > 0 && !langs.includes(stack.language)) return false;
-      if (stack.framework && fwks.length > 0 && !fwks.includes(stack.framework)) return false;
+    const all = this.getAll();
+    if (!stack.language && !stack.framework) return all.slice(0, 50);
+    return all.filter(a => {
+      const aWithClassifications = a as Artifact & {
+        classifications?: { languages: string[]; frameworks: string[] }[];
+      };
+      const cls = aWithClassifications.classifications?.[0];
+      if (!cls) return true;
+      if (stack.language && cls.languages.length > 0 && !cls.languages.includes(stack.language))
+        return false;
+      if (
+        stack.framework &&
+        cls.frameworks.length > 0 &&
+        !cls.frameworks.includes(stack.framework)
+      )
+        return false;
       return true;
     });
   }
