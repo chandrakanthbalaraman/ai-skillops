@@ -72,10 +72,13 @@ export class RegistryCache {
 
     const syncAll = this.db.transaction((rows: Artifact[]) => {
       for (const a of rows) {
+        const cls = (a as unknown as { classifications?: { languages: string[]; frameworks: string[] }[] }).classifications?.[0];
+        const languages = JSON.stringify(cls?.languages ?? []);
+        const frameworks = JSON.stringify(cls?.frameworks ?? []);
         insert.run({
           ...a,
-          languages: '[]',
-          frameworks: '[]',
+          languages,
+          frameworks,
         });
       }
     });

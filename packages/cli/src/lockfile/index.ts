@@ -10,8 +10,9 @@ export async function readLockfile(cwd: string): Promise<Lockfile | null> {
   try {
     const text = await readFile(join(cwd, LOCKFILE_NAME), 'utf-8');
     return LockfileSchema.parse(parse(text));
-  } catch {
-    return null;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw err;
   }
 }
 
