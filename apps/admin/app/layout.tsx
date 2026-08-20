@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { Nav } from '@/components/nav';
+import { Inter } from 'next/font/google';
+import { cn } from '@/lib/utils';
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
   title: 'ai-skillops Admin',
@@ -8,10 +11,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="bg-gray-950 text-gray-100 min-h-screen">
-        <Nav />
-        <main className="max-w-7xl mx-auto px-4 py-8">{children}</main>
+    <html lang="en" className={cn('dark font-sans', inter.variable)}>
+      <body>
+        {children}
       </body>
     </html>
   );
