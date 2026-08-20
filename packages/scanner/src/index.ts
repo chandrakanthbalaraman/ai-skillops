@@ -187,11 +187,16 @@ async function run(): Promise<void> {
 
   // ── Phase 1: Seed ────────────────────────────────────────────────────────
   // Fast upsert of leaderboard metadata — no GitHub API calls.
-  // New repos are inserted as 'pending'; existing repos only get their
-  // install count refreshed (status and last_scanned_at are untouched).
-  console.log('Phase 1: seeding repositories from skills.sh…');
-  const leaderboard = await scrapeLeaderboard();
-  console.log(`  ${leaderboard.length} repos on leaderboard`);
+  // Requires VERCEL_OIDC_TOKEN; skipped gracefully when not set so the
+  // scanner can run on GitHub Actions with only GITHUB_TOKEN + SUPABASE_*.
+  const hasToken = !!process.env['VERCEL_OIDC_TOKEN'];
+  console.log(
+    hasToken
+      ? 'Phase 1: seeding repositories from skills.sh…'
+      : 'Phase 1: skipped (no VERCEL_OIDC_TOKEN — set it to sync install counts)',
+  );
+  const leaderboard = hasToken ? await scrapeLeaderboard() : [];
+  console.log(hasToken ? `  ${leaderboard.length} repos on leaderboard` : '');
 
   const allRepos = await client.getAllRepositories();
   const byUrl = new Map(allRepos.map(r => [r.github_url, r]));

@@ -40,13 +40,7 @@ export function parseApiPage(body: unknown): SkillsShEntry[] {
 
 export async function scrapeLeaderboard(): Promise<SkillsShEntry[]> {
   const token = process.env['VERCEL_OIDC_TOKEN'];
-  if (!token) {
-    throw new Error(
-      'VERCEL_OIDC_TOKEN is required for the skills.sh API.\n' +
-      'Local setup: vercel link && vercel env pull\n' +
-      'GitHub Actions: add VERCEL_OIDC_TOKEN secret or use @vercel/oidc',
-    );
-  }
+  if (!token) return [];
 
   const entries: SkillsShEntry[] = [];
   let page = 0;
