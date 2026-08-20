@@ -1,5 +1,16 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Repository } from '@ai-skillops/shared';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+
+function StatusBadge({ status }: { status: Repository['status'] }) {
+  if (status === 'active') return <Badge variant="outline" className="text-green-400 border-green-400/30">active</Badge>;
+  if (status === 'archived') return <Badge variant="outline" className="text-muted-foreground">archived</Badge>;
+  return <Badge variant="outline" className="text-yellow-400 border-yellow-400/30">{status}</Badge>;
+}
 
 export default async function RepositoriesPage() {
   const supabase = createSupabaseServerClient();
@@ -10,54 +21,84 @@ export default async function RepositoriesPage() {
     .limit(100);
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Repositories</h1>
-      <form action="/api/repositories" method="POST" className="flex gap-2 mb-6">
-        <input
-          name="githubUrl"
-          type="url"
-          placeholder="https://github.com/owner/repo"
-          required
-          className="flex-1 border border-gray-700 rounded bg-gray-900 px-3 py-2 text-sm text-gray-100 placeholder-gray-500"
-        />
-        <button type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-sm font-medium">
-          Add Repository
-        </button>
-      </form>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-gray-400 border-b border-gray-800">
-            <th className="pb-3 pr-4">Repository</th>
-            <th className="pb-3 pr-4">Source</th>
-            <th className="pb-3 pr-4">Status</th>
-            <th className="pb-3 pr-4">Installs</th>
-            <th className="pb-3">Last Scanned</th>
-          </tr>
-        </thead>
-        <tbody>
-          {((repos as Repository[]) ?? []).map(r => (
-            <tr key={r.id} className="border-b border-gray-800/50 hover:bg-gray-900/50">
-              <td className="py-3 pr-4">
-                <a href={r.github_url} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">
-                  {r.github_owner}/{r.github_repo}
-                </a>
-              </td>
-              <td className="py-3 pr-4 text-gray-400">{r.source}</td>
-              <td className="py-3 pr-4">
-                <span className={`px-2 py-0.5 rounded text-xs ${
-                  r.status === 'active' ? 'bg-green-900 text-green-300' :
-                  r.status === 'archived' ? 'bg-gray-800 text-gray-400' :
-                  'bg-yellow-900 text-yellow-300'
-                }`}>{r.status}</span>
-              </td>
-              <td className="py-3 pr-4">{r.skills_sh_installs.toLocaleString()}</td>
-              <td className="py-3 text-gray-400">
-                {r.last_scanned_at ? new Date(r.last_scanned_at).toLocaleDateString() : '—'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Repositories</h1>
+        <p className="text-muted-foreground text-sm mt-1">Manage and monitor registered repositories</p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Add Repository</CardTitle>
+          <CardDescription>Paste a GitHub URL to register a new repository for scanning</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action="/api/repositories" method="POST" className="flex gap-2">
+            <Input
+              name="githubUrl"
+              type="url"
+              placeholder="https://github.com/owner/repo"
+              required
+              className="flex-1"
+            />
+            <Button type="submit">Add Repository</Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">All Repositories</CardTitle>
+          <CardDescription>{repos?.length ?? 0} repositories registered</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Repository</TableHead>
+                <TableHead>Source</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Installs</TableHead>
+                <TableHead>Last Scanned</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {((repos as Repository[]) ?? []).length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    No repositories yet. Add one above.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                ((repos as Repository[]) ?? []).map(r => (
+                  <TableRow key={r.id}>
+                    <TableCell>
+                      <a
+                        href={r.github_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-indigo-400 hover:underline font-medium"
+                      >
+                        {r.github_owner}/{r.github_repo}
+                      </a>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="text-xs">{r.source}</Badge>
+                    </TableCell>
+                    <TableCell><StatusBadge status={r.status} /></TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {r.skills_sh_installs.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {r.last_scanned_at ? new Date(r.last_scanned_at).toLocaleDateString() : '—'}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

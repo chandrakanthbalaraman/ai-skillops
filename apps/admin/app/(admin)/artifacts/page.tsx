@@ -1,5 +1,26 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Artifact } from '@ai-skillops/shared';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+
+function StatusBadge({ status }: { status: Artifact['status'] }) {
+  if (status === 'approved') return <Badge variant="outline" className="text-green-400 border-green-400/30">approved</Badge>;
+  if (status === 'blocked') return <Badge variant="destructive">blocked</Badge>;
+  return <Badge variant="outline" className="text-yellow-400 border-yellow-400/30">pending</Badge>;
+}
+
+function ScoreBar({ value }: { value: number }) {
+  const color = value >= 80 ? 'bg-green-500' : value >= 50 ? 'bg-yellow-500' : 'bg-red-500';
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${value}%` }} />
+      </div>
+      <span className="text-xs tabular-nums">{value}</span>
+    </div>
+  );
+}
 
 export default async function ArtifactsPage() {
   const supabase = createSupabaseServerClient();
@@ -9,37 +30,55 @@ export default async function ArtifactsPage() {
     .order('combined_score', { ascending: false })
     .limit(200);
 
+  const list = (artifacts as Artifact[]) ?? [];
+
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Artifacts</h1>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-gray-400 border-b border-gray-800">
-            <th className="pb-3 pr-4">Name</th>
-            <th className="pb-3 pr-4">Kind</th>
-            <th className="pb-3 pr-4">Status</th>
-            <th className="pb-3 pr-4">Safety</th>
-            <th className="pb-3">Score</th>
-          </tr>
-        </thead>
-        <tbody>
-          {((artifacts as Artifact[]) ?? []).map(a => (
-            <tr key={a.id} className="border-b border-gray-800/50 hover:bg-gray-900/50">
-              <td className="py-3 pr-4 text-indigo-400">{a.name}</td>
-              <td className="py-3 pr-4 text-gray-400">{a.kind}</td>
-              <td className="py-3 pr-4">
-                <span className={`px-2 py-0.5 rounded text-xs ${
-                  a.status === 'approved' ? 'bg-green-900 text-green-300' :
-                  a.status === 'blocked' ? 'bg-red-900 text-red-300' :
-                  'bg-yellow-900 text-yellow-300'
-                }`}>{a.status}</span>
-              </td>
-              <td className="py-3 pr-4">{a.safety_score}/100</td>
-              <td className="py-3">{a.combined_score}/100</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Artifacts</h1>
+        <p className="text-muted-foreground text-sm mt-1">Browse and filter all registered artifacts</p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">All Artifacts</CardTitle>
+          <CardDescription>{list.length} artifacts · sorted by combined score</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Kind</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Safety</TableHead>
+                <TableHead>Score</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {list.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    No artifacts yet. Run the scanner to populate the registry.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                list.map(a => (
+                  <TableRow key={a.id}>
+                    <TableCell className="font-medium">{a.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="text-xs">{a.kind}</Badge>
+                    </TableCell>
+                    <TableCell><StatusBadge status={a.status} /></TableCell>
+                    <TableCell><ScoreBar value={a.safety_score} /></TableCell>
+                    <TableCell><ScoreBar value={a.combined_score} /></TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }
