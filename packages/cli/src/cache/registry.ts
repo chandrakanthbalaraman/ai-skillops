@@ -14,7 +14,16 @@ export class RegistryCache {
 
   constructor(dbPath: string = CACHE_PATH) {
     mkdirSync(CACHE_DIR, { recursive: true });
-    this.db = new Database(dbPath);
+    try {
+      this.db = new Database(dbPath);
+    } catch (err) {
+      throw new Error(
+        `ai-skillops: SQLite native addon failed to load.\n` +
+        `  Node ${process.version}  (ABI ${process.versions.modules})\n` +
+        `  Try: npm rebuild better-sqlite3\n` +
+        `  Cause: ${(err as Error).message}`,
+      );
+    }
     this.initSchema();
   }
 
