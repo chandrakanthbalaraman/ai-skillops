@@ -36,6 +36,26 @@ async function runConcurrent<T>(
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
 }
 
+function deriveArtifactName(filePath: string, repoName: string): string {
+  const parts = filePath.split('/');
+  const filename = parts[parts.length - 1];
+  const basename = filename.replace(/\.(md|mdc)$/i, '');
+
+  // .claude/skills/my-skill/SKILL.md → "my-skill"
+  // .agents/skills/my-skill/SKILL.md → "my-skill"
+  if (/^SKILL$/i.test(basename) && parts.length > 1) {
+    return parts[parts.length - 2];
+  }
+
+  // Root-level meta-files (AGENTS.md, CLAUDE.md, SKILL.md at root) → repo name
+  // These are the "one skill per repo" pattern common in skills.sh
+  if (parts.length === 1 && /^(AGENTS|CLAUDE|SKILL|CURSOR|GEMINI)$/i.test(basename)) {
+    return repoName;
+  }
+
+  return basename;
+}
+
 async function scanRepo(
   client: RegistryClient,
   octokit: Octokit,
@@ -92,7 +112,7 @@ async function scanRepo(
       const artifact = await client.upsertArtifact({
         repo_id: repo.id,
         kind: file.kind,
-        name: file.path.split('/').pop()?.replace(/\.(md|mdc)$/i, '') ?? file.path,
+        name: deriveArtifactName(file.path, repo.github_repo),
         path: file.path,
         version: '0.1.0',
         status,

@@ -20,9 +20,23 @@ export async function runInit(cwd: string): Promise<void> {
   await cache.ensureFresh();
 
   const byStack = cache.getForStack(stack);
-  const all = byStack.length > 0 ? byStack : cache.getAll();
-  const choices = all.slice(0, 10).map(a => ({
-    name: `${a.name}  ${chalk.dim(`Safety ${a.safety_score}`)}`,
+  const candidates = (byStack.length > 0 ? byStack : cache.getAll()).slice(0, 20);
+
+  const scoreBar = (n: number) => {
+    const filled = Math.round(n / 10);
+    return chalk.green('█'.repeat(filled)) + chalk.dim('░'.repeat(10 - filled));
+  };
+
+  const kindLabel: Record<string, string> = {
+    skill: chalk.cyan('skill'),
+    rule: chalk.magenta('rule'),
+    context: chalk.blue('context'),
+    command: chalk.yellow('command'),
+    workflow: chalk.green('workflow'),
+  };
+
+  const choices = candidates.map(a => ({
+    name: `${chalk.bold(a.name.padEnd(30))} ${kindLabel[a.kind] ?? a.kind}  ${scoreBar(a.safety_score)} ${chalk.dim(String(a.safety_score))}`,
     value: a,
     checked: a.combined_score >= 80,
   }));
@@ -57,6 +71,9 @@ export async function runInit(cwd: string): Promise<void> {
     artifacts: lockfileEntries,
   });
 
-  console.log(chalk.green(`\nInstalled ${lockfileEntries.length} artifact(s).`));
-  console.log(chalk.dim('ai-skillops.lock.yaml written — commit this file to git.'));
+  console.log(chalk.green(`\n✓ Installed ${lockfileEntries.length} artifact(s):`));
+  for (const e of lockfileEntries) {
+    console.log(`  ${chalk.cyan(e.kind)}  ${chalk.bold(e.id.split('/').pop() ?? e.id)}`);
+  }
+  console.log(chalk.dim('\nai-skillops.lock.yaml written — commit this file to git.'));
 }
