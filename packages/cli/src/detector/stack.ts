@@ -28,6 +28,23 @@ async function readText(path: string): Promise<string> {
   }
 }
 
+// Extract tech hints from project context documents (project-plan.md, AGENTS.md, CLAUDE.md, README.md)
+async function readProjectContext(cwd: string): Promise<string> {
+  const candidates = [
+    'blueprint/project-plan.md',
+    'blueprint/context/project-overview.md',
+    'AGENTS.md',
+    'CLAUDE.md',
+    'README.md',
+  ];
+  const parts: string[] = [];
+  for (const f of candidates) {
+    const text = await readText(join(cwd, f));
+    if (text) parts.push(text);
+  }
+  return parts.join('\n').toLowerCase();
+}
+
 export async function detectStack(cwd: string): Promise<StackProfile> {
   const profile: StackProfile = {
     language: null,
@@ -97,7 +114,7 @@ export async function detectStack(cwd: string): Promise<StackProfile> {
     else if (await fileExists(join(cwd, 'manage.py'))) profile.framework = 'django';
   }
 
-  // Database detection
+  // Database detection from env files and docker-compose
   const envFiles = ['.env', '.env.local', '.env.example', 'docker-compose.yml', 'docker-compose.yaml'];
   for (const f of envFiles) {
     const content = (await readText(join(cwd, f))).toLowerCase();
@@ -106,6 +123,41 @@ export async function detectStack(cwd: string): Promise<StackProfile> {
     if (content.includes('oracle')) { profile.database = 'oracle'; break; }
     if (content.includes('mongodb') || content.includes('mongo_uri')) { profile.database = 'mongodb'; break; }
     if (content.includes('sqlite')) { profile.database = 'sqlite'; break; }
+  }
+
+  // Fill gaps from project context documents (project-plan.md, AGENTS.md, CLAUDE.md, README.md)
+  // Only fills fields that file-based detection didn't resolve
+  const ctx = await readProjectContext(cwd);
+  if (ctx) {
+    if (!profile.language) {
+      if (ctx.includes('typescript')) profile.language = 'typescript';
+      else if (ctx.includes('javascript') || ctx.includes('node.js') || ctx.includes('nodejs')) profile.language = 'javascript';
+      else if (ctx.includes('python') || ctx.includes('fastapi') || ctx.includes('django') || ctx.includes('flask')) profile.language = 'python';
+      else if (ctx.includes('java') || ctx.includes('spring boot') || ctx.includes('spring-boot')) profile.language = 'java';
+      else if (ctx.includes('kotlin')) profile.language = 'kotlin';
+    }
+    if (!profile.framework) {
+      if (ctx.includes('next.js') || ctx.includes('nextjs') || ctx.includes('next js')) profile.framework = 'next.js';
+      else if (ctx.includes('react')) profile.framework = 'react';
+      else if (ctx.includes('angular')) profile.framework = 'angular';
+      else if (ctx.includes('vue')) profile.framework = 'vue';
+      else if (ctx.includes('spring boot') || ctx.includes('spring-boot')) profile.framework = 'spring-boot';
+      else if (ctx.includes('fastapi')) profile.framework = 'fastapi';
+      else if (ctx.includes('django')) profile.framework = 'django';
+      else if (ctx.includes('flask')) profile.framework = 'flask';
+    }
+    if (!profile.database) {
+      if (ctx.includes('postgresql') || ctx.includes('postgres')) profile.database = 'postgresql';
+      else if (ctx.includes('mysql')) profile.database = 'mysql';
+      else if (ctx.includes('oracle')) profile.database = 'oracle';
+      else if (ctx.includes('mongodb') || ctx.includes('mongo')) profile.database = 'mongodb';
+      else if (ctx.includes('sqlite')) profile.database = 'sqlite';
+    }
+    // Agents from context docs
+    if (!profile.agents.includes('claude-code') && (ctx.includes('claude code') || ctx.includes('claude-code'))) profile.agents.push('claude-code');
+    if (!profile.agents.includes('cursor') && ctx.includes('cursor')) profile.agents.push('cursor');
+    if (!profile.agents.includes('copilot') && (ctx.includes('copilot') || ctx.includes('github copilot'))) profile.agents.push('copilot');
+    if (!profile.agents.includes('codex') && ctx.includes('codex')) profile.agents.push('codex');
   }
 
   return profile;
