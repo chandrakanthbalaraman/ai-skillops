@@ -85,6 +85,50 @@ export class RegistryClient {
     if (error) throw new Error(`insertFinding failed: ${error.message}`);
   }
 
+  async insertFindings(findings: Omit<SafetyFinding, 'id'>[]): Promise<void> {
+    if (findings.length === 0) return;
+    const { error } = await this.supabase.from('safety_findings').insert(findings);
+    if (error) throw new Error(`insertFindings failed: ${error.message}`);
+  }
+
+  async failScan(scanId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('scans')
+      .update({ status: 'failed', completed_at: new Date().toISOString() })
+      .eq('id', scanId);
+    if (error) throw new Error(`failScan failed: ${error.message}`);
+  }
+
+  async getAllRepositories(): Promise<Repository[]> {
+    const { data, error } = await this.supabase
+      .from('repositories')
+      .select('*')
+      .order('skills_sh_installs', { ascending: false });
+    if (error) throw new Error(`getAllRepositories failed: ${error.message}`);
+    return (data ?? []) as Repository[];
+  }
+
+  async getStalestRepositories(limit: number, olderThanHours: number): Promise<Repository[]> {
+    const cutoff = new Date(Date.now() - olderThanHours * 3_600_000).toISOString();
+    const { data, error } = await this.supabase
+      .from('repositories')
+      .select('*')
+      .or(`last_scanned_at.is.null,last_scanned_at.lt.${cutoff}`)
+      .neq('status', 'scanning')
+      .order('last_scanned_at', { ascending: true, nullsFirst: true })
+      .limit(limit);
+    if (error) throw new Error(`getStalestRepositories failed: ${error.message}`);
+    return (data ?? []) as Repository[];
+  }
+
+  async updateRepositoryInstalls(id: string, installs: number): Promise<void> {
+    const { error } = await this.supabase
+      .from('repositories')
+      .update({ skills_sh_installs: installs })
+      .eq('id', id);
+    if (error) throw new Error(`updateRepositoryInstalls failed: ${error.message}`);
+  }
+
   async insertInstallEvent(
     event: Omit<InstallEvent, 'id' | 'installed_at'>
   ): Promise<void> {
