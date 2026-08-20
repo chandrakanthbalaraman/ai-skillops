@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import type { Artifact } from '@ai-skillops/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,7 @@ function SeverityBadge({ severity }: { severity: string }) {
 }
 
 export default async function ReviewPage() {
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const { data: artifacts } = await supabase
     .from('artifacts')
     .select('*, safety_findings(*)')
