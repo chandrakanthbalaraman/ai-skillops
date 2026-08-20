@@ -119,18 +119,38 @@ async function scanRepo(
       const content = file.content.toLowerCase();
       const languages: string[] = [];
       const frameworks: string[] = [];
+      const databases: string[] = [];
       const agents: string[] = [];
 
       if (file.path.startsWith('.claude/')) agents.push('claude-code');
       if (file.path.startsWith('.cursor/')) agents.push('cursor');
       if (file.path.startsWith('.github/') || content.includes('copilot')) agents.push('copilot');
 
-      if (content.includes('typescript') || content.includes('tsx')) languages.push('typescript');
-      else if (content.includes('javascript') || content.includes('jsx')) languages.push('javascript');
-      if (content.includes('next.js') || content.includes('nextjs')) frameworks.push('next.js');
+      // Languages
+      if (content.includes('typescript') || content.includes(' tsx') || content.includes('.tsx')) languages.push('typescript');
+      if (content.includes('javascript') || content.includes(' jsx') || content.includes('.jsx')) languages.push('javascript');
+      if (content.includes('python') || content.includes('pip ') || content.includes('fastapi') || content.includes('django') || content.includes('flask')) languages.push('python');
+      if (content.includes('java') || content.includes('spring') || content.includes('maven') || content.includes('gradle')) languages.push('java');
+      if (content.includes('kotlin')) languages.push('kotlin');
+
+      // Frameworks
+      if (content.includes('next.js') || content.includes('nextjs') || content.includes('next dev')) frameworks.push('next.js');
       else if (content.includes('react')) frameworks.push('react');
-      if (content.includes('spring boot') || content.includes('spring')) frameworks.push('spring-boot');
-      if (content.includes('django')) frameworks.push('django');
+      if (content.includes('angular') || content.includes('@angular')) frameworks.push('angular');
+      if (content.includes('vue')) frameworks.push('vue');
+      if (content.includes('fastapi')) frameworks.push('fastapi');
+      else if (content.includes('flask')) frameworks.push('flask');
+      else if (content.includes('django')) frameworks.push('django');
+      if (content.includes('spring boot') || content.includes('spring-boot') || content.includes('springboot')) frameworks.push('spring-boot');
+      else if (content.includes('spring')) frameworks.push('spring');
+
+      // Databases
+      if (content.includes('postgres') || content.includes('postgresql')) databases.push('postgresql');
+      if (content.includes('mysql')) databases.push('mysql');
+      if (content.includes('oracle') || content.includes('pl/sql')) databases.push('oracle');
+      if (content.includes('mongodb') || content.includes('mongoose')) databases.push('mongodb');
+      if (content.includes('sqlite')) databases.push('sqlite');
+      if (content.includes('sql') && databases.length === 0) databases.push('sql');
 
       await client.upsertClassification({
         artifact_id: artifact.id,
@@ -139,7 +159,7 @@ async function scanRepo(
         framework_versions: {},
         runtimes: [],
         build_tools: [],
-        databases: [],
+        databases,
         architectures: [],
         agents,
       });

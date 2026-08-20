@@ -85,12 +85,27 @@ export async function detectStack(cwd: string): Promise<StackProfile> {
   }
 
   // Python
-  if (
-    (await fileExists(join(cwd, 'pyproject.toml'))) ||
-    (await fileExists(join(cwd, 'requirements.txt')))
-  ) {
+  const reqPath = join(cwd, 'requirements.txt');
+  const pyprojectPath = join(cwd, 'pyproject.toml');
+  if ((await fileExists(reqPath)) || (await fileExists(pyprojectPath))) {
     profile.language = 'python';
-    if (await fileExists(join(cwd, 'manage.py'))) profile.framework = 'django';
+    const req = await readText(reqPath);
+    const pyproject = await readText(pyprojectPath);
+    const combined = (req + pyproject).toLowerCase();
+    if (combined.includes('fastapi')) profile.framework = 'fastapi';
+    else if (combined.includes('flask')) profile.framework = 'flask';
+    else if (await fileExists(join(cwd, 'manage.py'))) profile.framework = 'django';
+  }
+
+  // Database detection
+  const envFiles = ['.env', '.env.local', '.env.example', 'docker-compose.yml', 'docker-compose.yaml'];
+  for (const f of envFiles) {
+    const content = (await readText(join(cwd, f))).toLowerCase();
+    if (content.includes('postgres') || content.includes('postgresql')) { profile.database = 'postgresql'; break; }
+    if (content.includes('mysql')) { profile.database = 'mysql'; break; }
+    if (content.includes('oracle')) { profile.database = 'oracle'; break; }
+    if (content.includes('mongodb') || content.includes('mongo_uri')) { profile.database = 'mongodb'; break; }
+    if (content.includes('sqlite')) { profile.database = 'sqlite'; break; }
   }
 
   return profile;
