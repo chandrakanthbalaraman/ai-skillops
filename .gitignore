@@ -10,3 +10,7 @@ pnpm-lock.yaml
 yarn.lock
 .jolli/
 tsconfig.tsbuildinfo
+.vercel
+.env*
+.turbo
+.turbo/

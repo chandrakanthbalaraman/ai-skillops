@@ -151,12 +151,27 @@ export class RegistryClient {
     const all = (data ?? []) as (Artifact & { classifications: Classification[] })[];
 
     return all.filter(a => {
-      if (!a.classifications?.length) return true; // no classification data: include
+      if (!a.classifications?.length) return true;
       const c = a.classifications[0];
       if (stack.language && c.languages.length > 0 && !c.languages.includes(stack.language)) return false;
       if (stack.framework && c.frameworks.length > 0 && !c.frameworks.includes(stack.framework)) return false;
       return true;
     });
+  }
+
+  // Returns approved + pending_review artifacts for CLI use.
+  // pending_review artifacts are scanned and scored but not yet human-reviewed.
+  // Callers should surface the status so users can make informed install decisions.
+  async getPublicArtifacts(): Promise<(Artifact & { classifications: Classification[] })[]> {
+    const { data, error } = await this.supabase
+      .from('artifacts')
+      .select('*, classifications(*)')
+      .in('status', ['approved', 'pending_review'])
+      .gte('combined_score', 40)
+      .order('combined_score', { ascending: false })
+      .limit(200);
+    if (error) throw new Error(`getPublicArtifacts failed: ${error.message}`);
+    return (data ?? []) as (Artifact & { classifications: Classification[] })[];
   }
 
   async getArtifactById(id: string): Promise<Artifact | null> {

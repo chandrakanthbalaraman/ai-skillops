@@ -67,15 +67,9 @@ export class RegistryCache {
 
   async sync(): Promise<void> {
     const client = this.client;
-    const artifacts = await client.getApprovedArtifacts({
-      language: null,
-      framework: null,
-      runtime: null,
-      buildTool: null,
-      database: null,
-      agents: [],
-      architecture: null,
-    });
+    // Include pending_review so the CLI shows data before human review completes.
+    // The init flow shows a warning badge for unreviewed artifacts.
+    const artifacts = await client.getPublicArtifacts();
     const insert = this.db.prepare('INSERT OR REPLACE INTO artifacts (id, data) VALUES (?, ?)');
     const insertAll = this.db.transaction((items: Artifact[]) => {
       for (const item of items) insert.run(item.id, JSON.stringify(item));

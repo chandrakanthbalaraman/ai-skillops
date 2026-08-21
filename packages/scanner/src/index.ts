@@ -1,5 +1,6 @@
 import { Octokit } from '@octokit/rest';
-import { scrapeLeaderboard } from './sources/skills-sh.js';
+import { scrapeLeaderboard, scrapeCurated, scrapeSearch } from './sources/skills-sh.js';
+import { discoverReposFromGitHub, discoverReposForTech, searchReposByTopics } from './sources/github-discovery.js';
 import { detectArtifactFiles } from './sources/github.js';
 import { scanContent } from './safety/scanner.js';
 import {
@@ -205,43 +206,107 @@ async function run(): Promise<void> {
   const client = new RegistryClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
-  // ── Phase 1: Seed ────────────────────────────────────────────────────────
-  // Fast upsert of leaderboard metadata — no GitHub API calls.
-  // Requires VERCEL_OIDC_TOKEN; skipped gracefully when not set so the
-  // scanner can run on GitHub Actions with only GITHUB_TOKEN + SUPABASE_*.
+  // ── Phase 1: Seed from skills.sh ─────────────────────────────────────────
+  // Leaderboard + curated (342 first-party skills) + targeted semantic search.
+  // Requires VERCEL_OIDC_TOKEN — run `vercel env pull` locally to get it
+  // (valid 12h). Skipped gracefully so the scanner runs with only GITHUB_TOKEN.
   const hasToken = !!process.env['VERCEL_OIDC_TOKEN'];
-  console.log(
-    hasToken
-      ? 'Phase 1: seeding repositories from skills.sh…'
-      : 'Phase 1: skipped (no VERCEL_OIDC_TOKEN — set it to sync install counts)',
-  );
-  const leaderboard = hasToken ? await scrapeLeaderboard() : [];
-  console.log(hasToken ? `  ${leaderboard.length} repos on leaderboard` : '');
+  const SEARCH_QUERIES = [
+    'java spring-boot', 'java microservice', 'kotlin spring',
+    'python fastapi', 'python django', 'python flask',
+    'terraform aws', 'docker kubernetes', 'github actions workflow',
+    'aws lambda', 'azure functions', 'rust cargo', 'golang',
+    'react native', 'vue nuxt', 'android kotlin',
+    'supabase postgres', 'mysql database',
+  ];
 
-  const allRepos = await client.getAllRepositories();
-  const byUrl = new Map(allRepos.map(r => [r.github_url, r]));
+  if (!hasToken) {
+    console.log('Phase 1: skipped — VERCEL_OIDC_TOKEN not set');
+    console.log('  Run: vercel env pull   (valid 12h, no signup needed)');
+  } else {
+    console.log('Phase 1: seeding from skills.sh (leaderboard + curated + search)…');
+    const [leaderboard, curated, searched] = await Promise.all([
+      scrapeLeaderboard(),
+      scrapeCurated(),
+      scrapeSearch(SEARCH_QUERIES),
+    ]);
+    console.log(`  leaderboard: ${leaderboard.length}  curated: ${curated.length}  searched: ${searched.length}`);
 
-  let seedNew = 0;
-  let seedUpdate = 0;
-  for (const entry of leaderboard) {
-    const existing = byUrl.get(entry.githubUrl);
-    if (existing) {
-      await client.updateRepositoryInstalls(existing.id, entry.installs);
-      seedUpdate++;
-    } else {
-      await client.upsertRepository({
-        github_owner: entry.owner,
-        github_repo: entry.repo,
-        github_url: entry.githubUrl,
-        status: 'pending',
-        source: 'skills_sh',
-        skills_sh_installs: entry.installs,
-        last_scanned_at: null,
-      });
-      seedNew++;
+    // Deduplicate by github_url across all three sources
+    const seen = new Map<string, typeof leaderboard[0]>();
+    for (const e of [...leaderboard, ...curated, ...searched]) {
+      const prev = seen.get(e.githubUrl);
+      // Keep highest install count when same repo appears in multiple sources
+      if (!prev || e.installs > prev.installs) seen.set(e.githubUrl, e);
     }
+
+    const allRepos = await client.getAllRepositories();
+    const byUrl = new Map(allRepos.map(r => [r.github_url, r]));
+
+    let seedNew = 0;
+    let seedUpdate = 0;
+    for (const entry of seen.values()) {
+      const existing = byUrl.get(entry.githubUrl);
+      if (existing) {
+        await client.updateRepositoryInstalls(existing.id, entry.installs);
+        seedUpdate++;
+      } else {
+        await client.upsertRepository({
+          github_owner: entry.owner,
+          github_repo: entry.repo,
+          github_url: entry.githubUrl,
+          status: 'pending',
+          source: 'skills_sh',
+          skills_sh_installs: entry.installs,
+          last_scanned_at: null,
+        });
+        seedNew++;
+      }
+    }
+    console.log(`  seeded: ${seedNew} new, ${seedUpdate} install-count refreshes`);
   }
-  console.log(`  seeded: ${seedNew} new, ${seedUpdate} install-count refreshes`);
+
+  // ── Phase 1b: GitHub Discovery ───────────────────────────────────────────
+  // Search GitHub code for AGENTS.md / CLAUDE.md / SKILL.md files matching
+  // tech keywords. No Vercel token needed — only GITHUB_TOKEN.
+  // Controlled by SCANNER_DISCOVER env var (default: true).
+  const runDiscovery = (process.env['SCANNER_DISCOVER'] ?? 'true') === 'true';
+  const discoverTech = process.env['SCANNER_DISCOVER_TECH']; // comma-separated tech hints, e.g. "java,python"
+  if (runDiscovery) {
+    console.log('\nPhase 1b: discovering repos from GitHub (topic search + code search)…');
+
+    // Topic search is fast (~16s for 8 topics): finds repos that self-label as skills.
+    // Code search is slower (~100s) but finds repos that haven't tagged themselves.
+    const topicRepos = await searchReposByTopics(octokit, 30);
+    console.log(`  topic search: ${topicRepos.length} repos`);
+
+    const codeRepos = discoverTech
+      ? await discoverReposForTech(octokit, discoverTech.split(',').map(s => s.trim()), 10)
+      : await discoverReposFromGitHub(octokit, 5);
+    console.log(`  code search: ${codeRepos.length} repos`);
+
+    const discovered = [...topicRepos, ...codeRepos];
+    const allRepos2 = await client.getAllRepositories();
+    const byUrl2 = new Map(allRepos2.map(r => [r.github_url, r]));
+    let discoverNew = 0;
+    for (const d of discovered) {
+      if (!byUrl2.has(d.githubUrl)) {
+        await client.upsertRepository({
+          github_owner: d.owner,
+          github_repo: d.repo,
+          github_url: d.githubUrl,
+          status: 'pending',
+          source: 'github_discovery',
+          skills_sh_installs: 0,
+          last_scanned_at: null,
+        });
+        discoverNew++;
+      }
+    }
+    console.log(`  ${discoverNew} new repos added to registry`);
+  } else {
+    console.log('\nPhase 1b: skipped (set SCANNER_DISCOVER=true to enable GitHub discovery)');
+  }
 
   // ── Phase 2: Scan ─────────────────────────────────────────────────────────
   // Pick the BATCH_SIZE repos with the oldest last_scanned_at (nulls first),
